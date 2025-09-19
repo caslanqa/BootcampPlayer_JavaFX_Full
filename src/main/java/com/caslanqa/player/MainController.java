@@ -52,6 +52,18 @@ public class MainController {
         mediaView.fitHeightProperty().bind(videoPane.heightProperty());
         mediaView.setPreserveRatio(true);
 
+        mediaView.setOnMouseClicked(e -> {
+            if (mediaPlayer != null) {
+                MediaPlayer.Status status = mediaPlayer.getStatus();
+                if (status == MediaPlayer.Status.PLAYING) {
+                    mediaPlayer.pause();
+                } else if (status == MediaPlayer.Status.PAUSED || status == MediaPlayer.Status.STOPPED || status == MediaPlayer.Status.READY) {
+                    mediaPlayer.play();
+                }
+            }
+        });
+
+
         if (btnSkipBack != null) {
             btnSkipBack.setOnAction(e -> skipBy(Duration.seconds(-10)));
         }
