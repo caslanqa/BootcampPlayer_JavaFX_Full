@@ -16,6 +16,7 @@ import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.stage.DirectoryChooser;
 import javafx.util.Duration;
+import javafx.stage.Stage;
 
 import java.io.File;
 
@@ -61,6 +62,7 @@ public class MainController {
     private Timeline progressTimer;
     private boolean isSeeking = false;
     private boolean playlistVisible = true;
+    private Stage stage;
 
     @FXML
     private void initialize() {
@@ -210,6 +212,11 @@ public class MainController {
                 TreeItem<String> item = playlistTree.getSelectionModel().getSelectedItem();
                 if (item != null && item.isLeaf() && rootPath != null) {
                     String path = PathUtils.buildFullPath(rootPath, item);
+
+                    stage.setTitle("Bootcamp Player (JavaFX)");
+                    String itemValue = item.getValue().split("\\.")[0];
+                    stage.setTitle(stage.getTitle() + " - " + itemValue);
+
                     loadAndPlay(path);
                 }
             }
@@ -231,6 +238,10 @@ public class MainController {
         progressTimer = new Timeline(new KeyFrame(Duration.millis(500), e -> updateProgress()));
         progressTimer.setCycleCount(Timeline.INDEFINITE);
         progressTimer.play();
+    }
+
+    public void setStage(Stage stage) {
+        this.stage = stage;
     }
 
     private void onSelectFolder() {

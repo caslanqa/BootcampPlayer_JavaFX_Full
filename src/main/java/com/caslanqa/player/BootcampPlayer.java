@@ -10,7 +10,9 @@ public class BootcampPlayer extends Application {
     public void start(Stage stage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/MainView.fxml"));
         Scene scene = new Scene(loader.load(), 1200, 700);
-        stage.setTitle("Bootcamp Player (JavaFX)");
+        stage.setTitle("Bootcamp Player");
+        MainController controller = loader.getController();
+        controller.setStage(stage);
         stage.setScene(scene);
         stage.show();
     }
