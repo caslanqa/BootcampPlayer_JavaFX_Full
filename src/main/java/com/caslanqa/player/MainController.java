@@ -3,6 +3,10 @@ package com.caslanqa.player;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.fxml.FXML;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.application.Platform;
+import javafx.scene.paint.Color;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.StackPane;
@@ -12,26 +16,45 @@ import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.stage.DirectoryChooser;
 import javafx.util.Duration;
+
 import java.io.File;
 
 public class MainController {
 
+
+    private Canvas audioVisualizerCanvas;
+    private GraphicsContext gc;
     // UI Components
-    @FXML private SplitPane splitPane;
-    @FXML private TreeView<String> playlistTree;
-    @FXML private StackPane videoPane;
-    @FXML private MediaView mediaView;
-    @FXML private Button btnTogglePlaylist;
-    @FXML private Button btnSelectFolder;
-    @FXML private Button btnPlay;
-    @FXML private Button btnPause;
-    @FXML private Button btnStop;
-    @FXML private Button btnSkipBack;     // NEW
-    @FXML private Button btnSkipForward;  // NEW
-    @FXML private Slider volumeSlider;
-    @FXML private Slider speedSlider;
-    @FXML private Slider progressSlider;
-    @FXML private Label timeLabel;
+    @FXML
+    private SplitPane splitPane;
+    @FXML
+    private TreeView<String> playlistTree;
+    @FXML
+    private StackPane videoPane;
+    @FXML
+    private MediaView mediaView;
+    @FXML
+    private Button btnTogglePlaylist;
+    @FXML
+    private Button btnSelectFolder;
+    @FXML
+    private Button btnPlay;
+    @FXML
+    private Button btnPause;
+    @FXML
+    private Button btnStop;
+    @FXML
+    private Button btnSkipBack;     // NEW
+    @FXML
+    private Button btnSkipForward;  // NEW
+    @FXML
+    private Slider volumeSlider;
+    @FXML
+    private Slider speedSlider;
+    @FXML
+    private Slider progressSlider;
+    @FXML
+    private Label timeLabel;
 
     private String rootPath = null;
     private MediaPlayer mediaPlayer = null;
@@ -71,9 +94,15 @@ public class MainController {
             btnSkipForward.setOnAction(e -> skipBy(Duration.seconds(10)));
         }
 
-        volumeSlider.setMin(0); volumeSlider.setMax(100); volumeSlider.setValue(70);
-        speedSlider.setMin(50); speedSlider.setMax(300); speedSlider.setValue(100);
-        progressSlider.setMin(0); progressSlider.setMax(1000); progressSlider.setValue(0);
+        volumeSlider.setMin(0);
+        volumeSlider.setMax(100);
+        volumeSlider.setValue(70);
+        speedSlider.setMin(50);
+        speedSlider.setMax(300);
+        speedSlider.setValue(100);
+        progressSlider.setMin(0);
+        progressSlider.setMax(1000);
+        progressSlider.setValue(0);
 
         btnSelectFolder.setOnAction(e -> onSelectFolder());
         btnTogglePlaylist.setOnAction(e -> togglePlaylist());
@@ -193,6 +222,7 @@ public class MainController {
                 if (mediaPlayer != null && mediaPlayer.getStatus() == MediaPlayer.Status.PAUSED) {
                     mediaPlayer.play();
                 } else {
+                    stop();
                     loadAndPlay(path);
                 }
             }
@@ -244,12 +274,22 @@ public class MainController {
             mediaPlayer.setRate(speedSlider.getValue() / 100.0);
 
             mediaPlayer.setOnReady(() -> {
+                stop();
                 progressSlider.setValue(0);
-                timeLabel.setText("00:00 / " + PathUtils.formatTimeMillis((long)mediaPlayer.getTotalDuration().toMillis()));
+                timeLabel.setText("00:00 / " + PathUtils.formatTimeMillis((long) mediaPlayer.getTotalDuration().toMillis()));
+
+                if(filePath.endsWith(".mp3")) {
+                    setupAudioVisualizer(mediaPlayer);
+                } else {
+                    clearAudioSpectrum();
+                }
+
                 play();
             });
 
-            mediaPlayer.setOnEndOfMedia(this::stop);
+            mediaPlayer.setOnEndOfMedia(() -> {
+                playNextMedia();
+            });
 
         } catch (MediaException ex) {
             showAlert("Media Error", "Dosya açılamadı:" + filePath + " " + ex.getMessage());
@@ -324,5 +364,114 @@ public class MainController {
         // Optional immediate UI feedback; timer will update too
         double frac = target.toMillis() / total.toMillis();
         progressSlider.setValue(frac * progressSlider.getMax());
+    }
+
+    private void playNextMedia() {
+        if (rootPath == null) return;
+
+        TreeItem<String> currentItem = playlistTree.getSelectionModel().getSelectedItem();
+        if (currentItem == null || !currentItem.isLeaf()) return;
+
+        TreeItem<String> parent = currentItem.getParent();
+        if (parent == null) return;
+
+        // Find current item index in parent's children
+        int currentIndex = parent.getChildren().indexOf(currentItem);
+        if (currentIndex == -1) return;
+
+        // Look for next media file
+        for (int i = currentIndex + 1; i < parent.getChildren().size(); i++) {
+            TreeItem<String> nextItem = parent.getChildren().get(i);
+            if (nextItem.isLeaf()) {
+                // Found next media file
+                playlistTree.getSelectionModel().select(nextItem);
+                String nextPath = PathUtils.buildFullPath(rootPath, nextItem);
+                loadAndPlay(nextPath);
+                return;
+            }
+        }
+    }
+
+    private void initializeAudioVisualizer() {
+        audioVisualizerCanvas = new Canvas();
+        audioVisualizerCanvas.widthProperty().bind(mediaView.fitWidthProperty());
+        audioVisualizerCanvas.heightProperty().bind(mediaView.fitHeightProperty());
+
+        // Yeni canvas için GraphicsContext'i güncelle
+        gc = audioVisualizerCanvas.getGraphicsContext2D();
+    }
+
+    private void setupAudioVisualizer(MediaPlayer mediaPlayer) {
+        // Eski MediaPlayer'ın listener'ını temizle
+        if (this.mediaPlayer != null)
+            this.mediaPlayer.setAudioSpectrumListener(null);
+
+
+        clearAudioSpectrum();
+
+        // Sadece ses dosyalarında görselleştirici ekle
+        Object videoMeta = mediaPlayer.getMedia().getMetadata().get("video");
+        if (videoMeta == null || Boolean.FALSE.equals(videoMeta)) {
+            // Yeni canvas oluştur
+            initializeAudioVisualizer();
+
+            StackPane stackPane = (StackPane) mediaView.getParent();
+            if (stackPane != null) {
+                stackPane.getChildren().add(audioVisualizerCanvas);
+            }
+
+            // Yeni MediaPlayer için listener ayarla
+            mediaPlayer.setAudioSpectrumListener((timestamp, duration, magnitudes, phases) -> {
+                Platform.runLater(() -> {
+                    drawAudioSpectrum(magnitudes);
+                });
+            });
+
+            mediaPlayer.setAudioSpectrumNumBands(64);
+            mediaPlayer.setAudioSpectrumInterval(0.05);
+        } else {
+            mediaPlayer.setAudioSpectrumListener(null);
+        }
+    }
+
+    private void clearAudioSpectrum() {
+        if (audioVisualizerCanvas != null) {
+            gc.clearRect(0, 0, audioVisualizerCanvas.getWidth(), audioVisualizerCanvas.getHeight());
+
+            StackPane stackPane = (StackPane) mediaView.getParent();
+            if (stackPane != null) {
+                stackPane.getChildren().remove(audioVisualizerCanvas);
+            }
+        }
+    }
+
+    private void drawAudioSpectrum(float[] magnitudes) {
+        double width = audioVisualizerCanvas.getWidth();
+        double height = audioVisualizerCanvas.getHeight();
+
+        // Canvas boyutu sıfır ise çizim yapma
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        // Önceki çizimi tamamen temizle
+        gc.clearRect(0, 0, width, height);
+
+        double barWidth = width / magnitudes.length;
+
+        for (int i = 0; i < magnitudes.length; i++) {
+            float magnitude = magnitudes[i] + 60;
+            magnitude = Math.max(0, magnitude);
+            double normalizedMagnitude = magnitude / 60.0;
+
+            double barHeight = normalizedMagnitude * height * 0.8;
+            double x = i * barWidth;
+            double y = height - barHeight;
+
+            double intensity = Math.min(1.0, normalizedMagnitude * 2);
+            gc.setFill(Color.hsb(180 + intensity * 60, 1.0, 0.8 + intensity * 0.2));
+
+            gc.fillRect(x, y, barWidth - 1, barHeight);
+        }
     }
 }
