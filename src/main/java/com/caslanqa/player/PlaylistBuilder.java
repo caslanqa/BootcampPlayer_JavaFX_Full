@@ -29,7 +29,7 @@ public class PlaylistBuilder {
                 .toArray(File[]::new);
 
         File[] videos = Arrays.stream(files)
-                .filter(f -> f.isFile() && isVideo(f) && !f.isHidden())
+                .filter(f -> f.isFile() && isMedia(f) && !f.isHidden())
                 .sorted(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER))
                 .toArray(File[]::new);
 
@@ -46,9 +46,13 @@ public class PlaylistBuilder {
         }
     }
 
-    private static boolean isVideo(File file) {
+    private static boolean isMedia(File file) {
         String lower = file.getName().toLowerCase();
-        return lower.endsWith(".mp4") || lower.endsWith(".mkv")
-                || lower.endsWith(".avi") || lower.endsWith(".mov");
+        return lower.endsWith(".mp4")
+                || lower.endsWith(".mkv")
+                || lower.endsWith(".avi")
+                || lower.endsWith(".mov")
+                || lower.endsWith(".mp3")
+                || lower.endsWith(".webm");
     }
 }
