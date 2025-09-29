@@ -1,0 +1,101 @@
+/* Dark theme */
+.root {
+    -fx-base: #2b2f33;
+    -fx-background: #2b2f33;
+    -fx-control-inner-background: #3a3f44;
+    -fx-accent: #4091ff;
+    -fx-focus-color: #4091ff;
+    -fx-faint-focus-color: rgba(64,145,255,0.3);
+    -fx-text-fill: #e2e2e2;
+}
+
+.tool-bar, .tool-bar:horizontal {
+    -fx-background-color: linear-gradient(#3a3f44,#303438);
+}
+.button, .toggle-button {
+    -fx-background-color: #444b52;
+    -fx-text-fill: #e2e2e2;
+}
+.button:hover, .toggle-button:hover {
+    -fx-background-color: #55606a;
+}
+.toggle-button:selected {
+    -fx-background-color: #4091ff;
+    -fx-text-fill: white;
+}
+.split-pane, .split-pane:horizontal > .split-pane-divider {
+    -fx-background-color: #303438;
+}
+.tree-view {
+    -fx-background-color: #2f3438;
+    -fx-cell-hover-color: #3d454b;
+}
+.label {
+    -fx-text-fill: #d5d5d5;
+}
+.slider .track {
+    -fx-background-color: #444b52;
+}
+.slider .thumb {
+    -fx-background-color: #4091ff;
+}
+.progress-indicator, .progress-bar {
+    -fx-accent: #4091ff;
+}
+
+/* Overlay icon */
+.overlay-icon {
+    -fx-font-size: 72px;
+    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.65), 18, 0.4, 0, 0);
+    -fx-font-weight: bold;
+}
+
+/* --- Media Control Buttons --- */
+.media-btn {
+    -fx-font-size: 16px;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-width: 0;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 10,0.4,0,2);
+    -fx-text-fill: #ffffff;
+    -fx-background-color: linear-gradient(#4a4f55,#363b40);
+    -fx-opacity: 0.92;
+    -fx-min-width: 52;
+    -fx-min-height: 40;
+}
+.media-btn:hover {
+    -fx-opacity: 1.0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 12,0.45,0,3);
+}
+.media-btn:pressed {
+    -fx-translate-y: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 6,0.3,0,1);
+}
+.play-btn {
+    -fx-background-color: linear-gradient(#2e7d32,#1b5e20);
+}
+.play-btn:hover {
+    -fx-background-color: linear-gradient(#359438,#256b26);
+}
+.pause-btn {
+    -fx-background-color: linear-gradient(#f9a825,#f57f17);
+    -fx-text-fill: #222;
+}
+.pause-btn:hover {
+    -fx-background-color: linear-gradient(#ffb830,#ff8f1f);
+}
+.stop-btn {
+    -fx-background-color: linear-gradient(#c62828,#8e0000);
+}
+.stop-btn:hover {
+    -fx-background-color: linear-gradient(#d93435,#a80000);
+}
+.media-btn:focused {
+    -fx-border-color: -fx-accent;
+    -fx-border-width: 2;
+    -fx-border-insets: -2;
+}

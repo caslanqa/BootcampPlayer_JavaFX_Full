@@ -1,0 +1,94 @@
+/* Light theme */
+.root {
+    -fx-base: #f4f6f8;
+    -fx-background: #f4f6f8;
+    -fx-control-inner-background: white;
+    -fx-accent: #1976d2;
+    -fx-focus-color: #1976d2;
+    -fx-faint-focus-color: rgba(25,118,210,0.3);
+    -fx-text-fill: #222;
+}
+.tool-bar, .tool-bar:horizontal {
+    -fx-background-color: linear-gradient(#ffffff,#e9eef2);
+}
+.button, .toggle-button {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #222;
+    -fx-border-color: #c4ccd3;
+    -fx-border-radius: 3;
+}
+.button:hover, .toggle-button:hover {
+    -fx-background-color: #e8f1fa;
+}
+.toggle-button:selected {
+    -fx-background-color: #1976d2;
+    -fx-text-fill: white;
+}
+.split-pane, .split-pane:horizontal > .split-pane-divider {
+    -fx-background-color: #d9e0e6;
+}
+.tree-view {
+    -fx-background-color: #ffffff;
+}
+.label {
+    -fx-text-fill: #222;
+}
+.slider .track {
+    -fx-background-color: #d0d7de;
+}
+.slider .thumb {
+    -fx-background-color: #1976d2;
+}
+
+/* Overlay icon */
+.overlay-icon {
+    -fx-font-size: 72px;
+    -fx-text-fill: rgba(0,0,0,0.70);
+    -fx-effect: dropshadow(gaussian, rgba(255,255,255,0.8), 16, 0.35, 0, 0);
+    -fx-font-weight: bold;
+}
+
+/* --- Media Control Buttons --- */
+.media-btn {
+    -fx-font-size: 16px;
+    -fx-padding: 8 16 8 16;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-width: 0;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 10,0.45,0,2);
+    -fx-text-fill: #222;
+    -fx-background-color: linear-gradient(#ffffff,#e6eaee);
+    -fx-opacity: 0.95;
+    -fx-min-width: 52;
+    -fx-min-height: 40;
+}
+.media-btn:hover {
+    -fx-opacity: 1.0;
+    -fx-background-color: linear-gradient(#f5f9ff,#dfe6ed);
+}
+.media-btn:pressed {
+    -fx-translate-y: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 6,0.3,0,1);
+}
+.play-btn {
+    -fx-background-color: linear-gradient(#43a047,#2e7d32);
+    -fx-text-fill: #fff;
+}
+.play-btn:hover { -fx-background-color: linear-gradient(#4fb250,#358a38); }
+.pause-btn {
+    -fx-background-color: linear-gradient(#ffca28,#ffb300);
+    -fx-text-fill: #3a2d00;
+}
+.pause-btn:hover { -fx-background-color: linear-gradient(#ffd54f,#ffc107); }
+.stop-btn {
+    -fx-background-color: linear-gradient(#e53935,#b71c1c);
+    -fx-text-fill: #fff;
+}
+.stop-btn:hover { -fx-background-color: linear-gradient(#ef4a47,#c62828); }
+.media-btn:focused {
+    -fx-border-color: -fx-accent;
+    -fx-border-width: 2;
+    -fx-border-insets: -2;
+}

@@ -8,6 +8,7 @@
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.ToolBar?>
 <?import javafx.scene.control.TreeView?>
+<?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.StackPane?>
@@ -21,6 +22,9 @@
             <Button fx:id="btnTogglePlaylist" text="Hide Playlist" />
             <Separator orientation="VERTICAL" />
             <Button fx:id="btnSelectFolder" text="Select Folder" />
+            <Separator orientation="VERTICAL" />
+            <!-- Tema toggle -->
+            <ToggleButton fx:id="btnThemeToggle" text="Dark Mode" />
         </ToolBar>
     </top>
 
@@ -31,6 +35,8 @@
                 <StackPane fx:id="videoPane">
                     <children>
                         <MediaView fx:id="mediaView" fitHeight="600.0" fitWidth="900.0" preserveRatio="true" />
+                        <!-- Play/Pause overlay icon -->
+                        <Label fx:id="overlayIcon" text="▶" visible="false" managed="false" styleClass="overlay-icon" />
                     </children>
                 </StackPane>
             </items>
@@ -40,13 +46,13 @@
     <bottom>
         <VBox spacing="6">
             <HBox alignment="CENTER_LEFT" spacing="8" BorderPane.alignment="CENTER">
-                <Button fx:id="btnPlay" text="Play" />
-                <Button fx:id="btnPause" text="Pause" />
-                <Button fx:id="btnStop" text="Stop" />
+                <Button fx:id="btnPlay" text="▶" styleClass="media-btn play-btn" mnemonicParsing="false" />
+                <Button fx:id="btnPause" text="❚❚" styleClass="media-btn pause-btn" mnemonicParsing="false" />
+                <Button fx:id="btnStop" text="■" styleClass="media-btn stop-btn" mnemonicParsing="false" />
                 <Label text="Volume" />
                 <Slider fx:id="volumeSlider" prefWidth="140.0" />
                 <Label text="Speed" />
-                <Slider fx:id="speedSlider" prefWidth="140.0" />
+                <Slider fx:id="speedSlider" prefWidth="180.0" />
                 <Button fx:id="btnSkipBack" text="⟲ 10s"/>
                 <Button fx:id="btnSkipForward" text="10s ⟳"/>
             </HBox>
