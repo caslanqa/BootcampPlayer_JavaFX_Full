@@ -1,33 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.control.Button?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Separator?>
-<?import javafx.scene.control.Slider?>
-<?import javafx.scene.control.SplitPane?>
-<?import javafx.scene.control.ToolBar?>
-<?import javafx.scene.control.TreeView?>
-<?import javafx.scene.control.ToggleButton?>
-<?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.StackPane?>
-<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 <?import javafx.scene.media.MediaView?>
 
 <BorderPane xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.caslanqa.player.MainController">
-
     <top>
         <ToolBar>
             <Button fx:id="btnTogglePlaylist" text="Hide Playlist" />
             <Separator orientation="VERTICAL" />
             <Button fx:id="btnSelectFolder" text="Select Folder" />
             <Separator orientation="VERTICAL" />
-            <!-- Tema toggle -->
             <ToggleButton fx:id="btnThemeToggle" text="Dark Mode" />
+            <Separator orientation="VERTICAL" />
+            <ToggleButton fx:id="btnFill" text="Fill" />
+            <Separator orientation="VERTICAL" />
+            <Label text="Loop:" />
+            <ChoiceBox fx:id="loopChoice" />
         </ToolBar>
     </top>
-
     <center>
         <SplitPane fx:id="splitPane" dividerPositions="0.2">
             <items>
@@ -35,33 +27,34 @@
                 <StackPane fx:id="videoPane">
                     <children>
                         <MediaView fx:id="mediaView" fitHeight="600.0" fitWidth="900.0" preserveRatio="true" />
-                        <!-- Play/Pause overlay icon -->
                         <Label fx:id="overlayIcon" text="▶" visible="false" managed="false" styleClass="overlay-icon" />
                     </children>
                 </StackPane>
             </items>
         </SplitPane>
     </center>
-
     <bottom>
-        <VBox spacing="6">
-            <HBox alignment="CENTER_LEFT" spacing="8" BorderPane.alignment="CENTER">
-                <Button fx:id="btnPlay" text="▶" styleClass="media-btn play-btn" mnemonicParsing="false" />
-                <Button fx:id="btnPause" text="❚❚" styleClass="media-btn pause-btn" mnemonicParsing="false" />
-                <Button fx:id="btnStop" text="■" styleClass="media-btn stop-btn" mnemonicParsing="false" />
-                <Label text="Volume" />
-                <Slider fx:id="volumeSlider" prefWidth="140.0" />
-                <Label text="Speed" />
-                <Slider fx:id="speedSlider" prefWidth="180.0" />
-                <Button fx:id="btnSkipBack" text="⟲ 10s"/>
-                <Button fx:id="btnSkipForward" text="10s ⟳"/>
+        <VBox fx:id="bottomBox" spacing="10">
+            <HBox fx:id="controlsBar" alignment="CENTER_LEFT" spacing="14" BorderPane.alignment="CENTER">
+                <Button fx:id="btnPlay" text="▶" styleClass="media-btn" mnemonicParsing="false" />
+                <Button fx:id="btnStop" text="■" styleClass="media-btn" mnemonicParsing="false" />
+                <Separator orientation="VERTICAL" />
+                <ToggleButton fx:id="btnMute" text="🔊" styleClass="media-btn" />
+                <Label text="Volume" styleClass="descriptor-label" />
+                <Slider fx:id="volumeSlider" prefWidth="160.0" />
+                <Label text="Speed" styleClass="descriptor-label" />
+                <Slider fx:id="speedSlider" prefWidth="190.0" />
+                <Separator orientation="VERTICAL" />
+                <Button fx:id="btnSkipBack" text="⟲ 10s" styleClass="media-btn" />
+                <Button fx:id="btnSkipForward" text="10s ⟳" styleClass="media-btn" />
+                <Region HBox.hgrow="ALWAYS" />
             </HBox>
-            <HBox alignment="CENTER_LEFT" spacing="10">
+            <HBox alignment="CENTER_LEFT" spacing="12">
                 <Slider fx:id="progressSlider" HBox.hgrow="ALWAYS" />
-                <Label fx:id="timeLabel" text="00:00 / 00:00" />
+                <Label fx:id="timeLabel" text="00:00 / 00:00" styleClass="time-label-clickable" />
             </HBox>
             <padding>
-                <Insets bottom="8" left="12" right="12" top="6" />
+                <Insets bottom="12" left="14" right="14" top="10" />
             </padding>
         </VBox>
     </bottom>

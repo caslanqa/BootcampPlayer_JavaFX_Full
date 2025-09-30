@@ -21,12 +21,22 @@ import javafx.stage.Stage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.prefs.Preferences;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 
 public class MainController {
 
     private Canvas audioVisualizerCanvas;
     private GraphicsContext gc;
+
+    // Media playlist management
+    private List<String> mediaFiles = new ArrayList<>();
+    private int currentIndex = -1;
+
     // UI Components
     @FXML
     private SplitPane splitPane;
@@ -40,16 +50,13 @@ public class MainController {
     private Button btnTogglePlaylist;
     @FXML
     private Button btnSelectFolder;
-    @FXML
-    private Button btnPlay;
-    @FXML
-    private Button btnPause;
+    @FXML private Button btnPlay;
     @FXML
     private Button btnStop;
     @FXML
-    private Button btnSkipBack;     // NEW
+    private Button btnSkipBack;
     @FXML
-    private Button btnSkipForward;  // NEW
+    private Button btnSkipForward;
     @FXML
     private Slider volumeSlider;
     @FXML
@@ -58,8 +65,11 @@ public class MainController {
     private Slider progressSlider;
     @FXML
     private Label timeLabel;
-    @FXML private ToggleButton btnThemeToggle; // THEME TOGGLE
-    @FXML private Label overlayIcon; // PLAY/PAUSE OVERLAY
+    @FXML private ToggleButton btnThemeToggle;
+    @FXML private Label overlayIcon;
+    @FXML private ToggleButton btnFill;
+    @FXML private ChoiceBox<String> loopChoice;
+    @FXML private ToggleButton btnMute;
 
     private String rootPath = null;
     private MediaPlayer mediaPlayer = null;
@@ -74,14 +84,30 @@ public class MainController {
     private static final String DARK_CSS = "/css/dark.css";
     private static final String LIGHT_CSS = "/css/light.css";
 
+    private static final String PREF_KEY_LOOP = "loopMode";
+    private static final String PREF_KEY_FILL = "fillMode";
+
     private final Preferences prefs = Preferences.userNodeForPackage(MainController.class);
 
-    private static final double[] PRESET_SPEEDS = {1.0, 1.25, 1.5, 1.75, 2.0};
-    private static final double SNAP_THRESHOLD = 0.035; // 3.5% yakınsa preset'e yapış
+    private static final double[] PRESET_SPEEDS = {1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0};
+    private static final double SNAP_THRESHOLD = 0.035;
 
-    private float[] previousMagnitudes; // Smoothing için
-    private static final double SMOOTHING_ALPHA = 0.45; // Yeni değere ağırlık
-    private static final double DECAY_FACTOR = 0.08; // Sessizlikte yavaş düşüş
+    private float[] previousMagnitudes;
+    private static final double SMOOTHING_ALPHA = 0.45;
+    private static final double DECAY_FACTOR = 0.08;
+
+    private final Set<KeyCode> rateUpKeys = Set.of(KeyCode.UP);
+    private final Set<KeyCode> rateDownKeys = Set.of(KeyCode.DOWN);
+
+    private javafx.animation.PauseTransition overlayHideDelay;
+
+    private enum LoopMode { NONE, ONE, FOLDER }
+
+    private LoopMode currentLoopMode = LoopMode.NONE;
+    private boolean fillMode = false;
+
+    private boolean showRemainingTime = false;
+    private double volumeBeforeMute = 50.0;
 
     @FXML
     private void initialize() {
@@ -96,7 +122,6 @@ public class MainController {
         mediaView.fitHeightProperty().bind(videoPane.heightProperty());
         mediaView.setPreserveRatio(true);
 
-        // Hız slider yeniden yapılandırma: 1.0 - 2.0 arası
         speedSlider.setMin(0.0);
         speedSlider.setMax(3.0);
         speedSlider.setValue(1.0);
@@ -104,7 +129,7 @@ public class MainController {
         speedSlider.setShowTickLabels(true);
         speedSlider.setMajorTickUnit(0.25);
         speedSlider.setMinorTickCount(0);
-        speedSlider.setSnapToTicks(false); // Manuel snapping
+        speedSlider.setSnapToTicks(false);
 
         mediaView.setOnMouseEntered(e -> showOverlayTemporary());
         mediaView.setOnMouseMoved(e -> showOverlayTemporary());
@@ -128,28 +153,52 @@ public class MainController {
 
         volumeSlider.setMin(0);
         volumeSlider.setMax(100);
-        volumeSlider.setValue(70);
+        volumeSlider.setValue(50);
         progressSlider.setMin(0);
         progressSlider.setMax(1000);
         progressSlider.setValue(0);
 
         btnSelectFolder.setOnAction(e -> onSelectFolder());
         btnTogglePlaylist.setOnAction(e -> togglePlaylist());
-        btnPlay.setOnAction(e -> play());
-        btnPause.setOnAction(e -> pause());
+        btnPlay.setOnAction(e -> togglePlayPause());
         btnStop.setOnAction(e -> stop());
 
-        // Tooltip & erişilebilirlik etiketleri
-        btnPlay.setTooltip(new Tooltip("Play"));
-        btnPause.setTooltip(new Tooltip("Pause"));
-        btnStop.setTooltip(new Tooltip("Stop"));
-        btnSkipBack.setTooltip(new Tooltip("10 saniye geri"));
-        btnSkipForward.setTooltip(new Tooltip("10 saniye ileri"));
+        if (timeLabel != null) {
+            timeLabel.setOnMouseClicked(e -> {
+                showRemainingTime = !showRemainingTime;
+                updateTimeDisplay();
+            });
+            timeLabel.setTooltip(new Tooltip("Click to toggle elapsed/remaining time"));
+        }
 
-        btnPlay.setAccessibleText("Play Button");
-        btnPause.setAccessibleText("Pause Button");
+        if (btnMute != null) {
+            btnMute.setSelected(false);
+            btnMute.setTooltip(new Tooltip("Mute / Unmute (M)"));
+            btnMute.setOnAction(e -> toggleMute());
+        }
+
+        btnPlay.setTooltip(new Tooltip("Play / Pause (Space)"));
+        btnStop.setTooltip(new Tooltip("Stop (S)"));
+        if (btnSkipBack != null) btnSkipBack.setTooltip(new Tooltip("10s backward (J)"));
+        if (btnSkipForward != null) btnSkipForward.setTooltip(new Tooltip("10s forward (L)"));
+
+        btnPlay.setAccessibleText("Play Pause Toggle Button");
         btnStop.setAccessibleText("Stop Button");
 
+        setupSliderHandlers();
+        setupPlaylistHandler();
+        setupThemeHandler();
+        setupLoopHandler();
+        setupFillHandler();
+
+        refreshButtonTexts();
+
+        progressTimer = new Timeline(new KeyFrame(Duration.millis(500), e -> updateProgress()));
+        progressTimer.setCycleCount(Timeline.INDEFINITE);
+        progressTimer.play();
+    }
+
+    private void setupSliderHandlers() {
         final Tooltip volumeTip = new Tooltip();
         final Tooltip speedTip = new Tooltip();
         final Tooltip progressTip = new Tooltip();
@@ -174,7 +223,6 @@ public class MainController {
         speedSlider.setOnMouseDragged(e -> { speedTip.setText(String.format("%.2fx", speedSlider.getValue())); speedTip.show(speedSlider, e.getScreenX(), e.getScreenY() - 30); });
         speedSlider.setOnMouseReleased(e -> speedTip.hide());
 
-        // Context menu presetleri
         ContextMenu speedMenu = new ContextMenu();
         for (double preset : PRESET_SPEEDS) {
             MenuItem mi = new MenuItem(String.format("%.2fx", preset));
@@ -245,12 +293,17 @@ public class MainController {
             seekToSlider();
             isSeeking = false;
         });
+    }
 
+    private void setupPlaylistHandler() {
         playlistTree.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
                 TreeItem<String> item = playlistTree.getSelectionModel().getSelectedItem();
                 if (item != null && item.isLeaf() && rootPath != null) {
                     String path = PathUtils.buildFullPath(rootPath, item);
+
+                    // Update current folder media files list
+                    updateCurrentFolderMediaFiles(item);
 
                     stage.setTitle("Bootcamp Player (JavaFX)");
                     String itemValue = item.getValue().split("\\.")[0];
@@ -260,42 +313,169 @@ public class MainController {
                 }
             }
         });
+    }
 
-        btnPlay.setOnAction(e -> {
-            TreeItem<String> item = playlistTree.getSelectionModel().getSelectedItem();
-            if (item != null && item.isLeaf() && rootPath != null) {
-                String path = PathUtils.buildFullPath(rootPath, item);
-                if (mediaPlayer != null && mediaPlayer.getStatus() == MediaPlayer.Status.PAUSED) {
-                    mediaPlayer.play();
-                } else {
-                    stop();
-                    loadAndPlay(path);
-                }
-            }
-        });
-
-        // Theme toggle handler (will run after scene is ready via Platform.runLater in setStage)
+    private void setupThemeHandler() {
         if (btnThemeToggle != null) {
             btnThemeToggle.setOnAction(e -> {
                 boolean dark = btnThemeToggle.isSelected();
                 applyTheme(dark ? THEME_DARK : THEME_LIGHT, true);
             });
         }
+    }
 
-        progressTimer = new Timeline(new KeyFrame(Duration.millis(500), e -> updateProgress()));
-        progressTimer.setCycleCount(Timeline.INDEFINITE);
-        progressTimer.play();
+    private void setupLoopHandler() {
+        if (loopChoice != null) {
+            loopChoice.getItems().setAll("None", "One", "Folder");
+            String savedLoop = prefs.get(PREF_KEY_LOOP, "None");
+            loopChoice.getSelectionModel().select(savedLoop);
+            currentLoopMode = parseLoop(savedLoop);
+            loopChoice.getSelectionModel().selectedItemProperty().addListener((o,ov,nv)-> {
+                if (nv != null) {
+                    currentLoopMode = parseLoop(nv);
+                    prefs.put(PREF_KEY_LOOP, nv);
+                }
+            });
+        }
+    }
+
+    private void setupFillHandler() {
+        if (btnFill != null) {
+            fillMode = prefs.getBoolean(PREF_KEY_FILL, false);
+            btnFill.setSelected(fillMode);
+            applyFillMode(fillMode);
+            btnFill.setOnAction(e -> {
+                fillMode = btnFill.isSelected();
+                prefs.putBoolean(PREF_KEY_FILL, fillMode);
+                applyFillMode(fillMode);
+            });
+        }
+    }
+
+    private void updateCurrentFolderMediaFiles(TreeItem<String> selectedItem) {
+        mediaFiles.clear();
+        currentIndex = -1;
+
+        TreeItem<String> parent = selectedItem.getParent();
+        if (parent != null) {
+            int index = 0;
+            for (TreeItem<String> child : parent.getChildren()) {
+                if (child.isLeaf()) {
+                    String fullPath = PathUtils.buildFullPath(rootPath, child);
+                    mediaFiles.add(fullPath);
+                    if (child == selectedItem) {
+                        currentIndex = index;
+                    }
+                    index++;
+                }
+            }
+        }
     }
 
     public void setStage(Stage stage) {
         this.stage = stage;
-        // Scene set edildikten sonra temayı uygula
-        Platform.runLater(this::initThemeFromPreferences);
+        Platform.runLater(() -> {
+            initThemeFromPreferences();
+            installGlobalKeyHandler();
+        });
+    }
+
+    private void installGlobalKeyHandler() {
+        if (stage == null || stage.getScene() == null) return;
+        stage.getScene().addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == KeyCode.SPACE || e.getCode() == KeyCode.K) {
+                togglePlayPause();
+                e.consume();
+            } else if (e.getCode() == KeyCode.S) {
+                stop();
+                e.consume();
+            } else if (e.getCode() == KeyCode.J) {
+                skipBy(Duration.seconds(-10));
+                e.consume();
+            } else if (e.getCode() == KeyCode.L) {
+                skipBy(Duration.seconds(10));
+                e.consume();
+            } else if (e.getCode() == KeyCode.M) {
+                toggleMute();
+                e.consume();
+            } else if (rateUpKeys.contains(e.getCode())) {
+                adjustRate(+0.05);
+                e.consume();
+            } else if (rateDownKeys.contains(e.getCode())) {
+                adjustRate(-0.05);
+                e.consume();
+            }
+        });
+    }
+
+    private void adjustRate(double delta) {
+        double newVal = Math.max(speedSlider.getMin(), Math.min(speedSlider.getMax(), speedSlider.getValue() + delta));
+        speedSlider.setValue(newVal);
+        if (mediaPlayer != null) mediaPlayer.setRate(newVal);
+    }
+
+    private LoopMode parseLoop(String v) {
+        return switch (v.toUpperCase()) { case "ONE" -> LoopMode.ONE; case "FOLDER" -> LoopMode.FOLDER; default -> LoopMode.NONE; };
+    }
+
+    private void applyFillMode(boolean fill) {
+        if (mediaView == null) return;
+        if (fill) {
+            mediaView.setPreserveRatio(false);
+        } else {
+            mediaView.setPreserveRatio(true);
+        }
+    }
+
+    private void togglePlayPause() {
+        if (mediaPlayer == null) {
+            TreeItem<String> item = playlistTree.getSelectionModel().getSelectedItem();
+            if (item != null && item.isLeaf() && rootPath != null) {
+                String path = PathUtils.buildFullPath(rootPath, item);
+                updateCurrentFolderMediaFiles(item);
+                loadAndPlay(path);
+            }
+            return;
+        }
+        MediaPlayer.Status st = mediaPlayer.getStatus();
+        if (st == MediaPlayer.Status.PLAYING) mediaPlayer.pause(); else mediaPlayer.play();
+        updatePlayPauseButtonGraphic();
+        updateOverlaySymbol();
+        showOverlayTemporary();
+    }
+
+    private void refreshButtonTexts() {
+        if (btnPlay == null || btnStop == null || btnSkipBack == null || btnSkipForward == null) return;
+        updatePlayPauseButtonGraphic();
+        btnStop.setText("■");
+        btnSkipBack.setText("⟲ 10s");
+        btnSkipForward.setText("10s ⟳");
+        if (overlayIcon != null) updateOverlaySymbol();
+    }
+
+    private void updatePlayPauseButtonGraphic() {
+        if (btnPlay == null) return;
+        if (mediaPlayer == null) { btnPlay.setText("▶"); return; }
+        MediaPlayer.Status st = mediaPlayer.getStatus();
+        btnPlay.setText(st == MediaPlayer.Status.PLAYING ? "❚❚" : "▶");
+    }
+
+    private void updateOverlaySymbol() {
+        if (overlayIcon == null) return;
+        if (mediaPlayer == null) { overlayIcon.setText("▶"); return; }
+        MediaPlayer.Status st = mediaPlayer.getStatus();
+        if (st == null) { overlayIcon.setText("▶"); return; }
+        switch (st) {
+            case PLAYING -> overlayIcon.setText("❚❚");
+            case PAUSED, READY, STOPPED -> overlayIcon.setText("▶");
+            case HALTED -> overlayIcon.setText("!");
+            default -> overlayIcon.setText("▶");
+        }
     }
 
     private void initThemeFromPreferences() {
         String saved = prefs.get(PREF_KEY_THEME, null);
-        if (saved == null) { // sistem temasını algıla (#7)
+        if (saved == null) {
             saved = detectSystemTheme();
             prefs.put(PREF_KEY_THEME, saved);
         }
@@ -349,39 +529,137 @@ public class MainController {
 
     private void loadAndPlay(String filePath) {
         try {
-            if (mediaPlayer != null) { mediaPlayer.stop(); mediaPlayer.dispose(); }
+            if (mediaPlayer != null) {
+                mediaPlayer.stop();
+                mediaPlayer.dispose();
+            }
+
             Media media = new Media(new File(filePath).toURI().toString());
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
-
-            // Her yeni medya başladığında hız 1.0x'e resetlensin
             speedSlider.setValue(1.0);
-
             mediaPlayer.setVolume(volumeSlider.getValue() / 100.0);
             mediaPlayer.setRate(speedSlider.getValue());
+
+            mediaPlayer.statusProperty().addListener((o,ov,nv)-> {
+                updatePlayPauseButtonGraphic();
+                updateOverlaySymbol();
+            });
+
             mediaPlayer.setOnReady(() -> {
-                stop();
                 progressSlider.setValue(0);
                 timeLabel.setText("00:00 / " + PathUtils.formatTimeMillis((long) mediaPlayer.getTotalDuration().toMillis()));
-                if (filePath.endsWith(".mp3")) { setupAudioVisualizer(mediaPlayer); } else { clearAudioSpectrum(); }
-                play();
+                if (filePath.endsWith(".mp3")) {
+                    setupAudioVisualizer(mediaPlayer);
+                } else {
+                    clearAudioSpectrum();
+                }
+                mediaPlayer.play();
+                updatePlayPauseButtonGraphic();
+                refreshButtonTexts();
             });
-            mediaPlayer.setOnEndOfMedia(this::playNextMedia);
-        } catch (MediaException ex) { showAlert("Media Error", "Dosya açılamadı:" + filePath + " " + ex.getMessage()); }
+
+            mediaPlayer.setOnEndOfMedia(this::handleEndOfMedia);
+
+        } catch (MediaException ex) {
+            showAlert("Media Error", "Dosya açılamadı:" + filePath + " " + ex.getMessage());
+        }
+    }
+
+    private void handleEndOfMedia() {
+        switch (currentLoopMode) {
+            case ONE -> {
+                if (mediaPlayer != null) {
+                    mediaPlayer.seek(Duration.ZERO);
+                    mediaPlayer.play();
+                }
+            }
+            case FOLDER -> {
+                if (!playNextMedia()) {
+                    wrapToFolderStart();
+                }
+            }
+            case NONE -> {
+                playNextMedia();
+            }
+        }
+    }
+
+    private void wrapToFolderStart() {
+        if (!mediaFiles.isEmpty()) {
+            currentIndex = 0;
+            loadAndPlay(mediaFiles.get(currentIndex));
+            updatePlaylistSelection();
+        }
+    }
+
+    private boolean playNextMedia() {
+        if (mediaFiles.isEmpty() || currentIndex >= mediaFiles.size() - 1) {
+            return false;
+        }
+
+        currentIndex++;
+        loadAndPlay(mediaFiles.get(currentIndex));
+        updatePlaylistSelection();
+        return true;
+    }
+
+    private void updatePlaylistSelection() {
+        if (currentIndex >= 0 && currentIndex < mediaFiles.size()) {
+            String currentPath = mediaFiles.get(currentIndex);
+            TreeItem<String> currentItem = findTreeItemByPath(currentPath);
+            if (currentItem != null) {
+                playlistTree.getSelectionModel().select(currentItem);
+            }
+        }
+    }
+
+    private TreeItem<String> findTreeItemByPath(String targetPath) {
+        return findTreeItemRecursive(playlistTree.getRoot(), targetPath);
+    }
+
+    private TreeItem<String> findTreeItemRecursive(TreeItem<String> item, String targetPath) {
+        if (item == null) return null;
+
+        if (item.isLeaf()) {
+            String itemPath = PathUtils.buildFullPath(rootPath, item);
+            if (itemPath.equals(targetPath)) {
+                return item;
+            }
+        }
+
+        for (TreeItem<String> child : item.getChildren()) {
+            TreeItem<String> result = findTreeItemRecursive(child, targetPath);
+            if (result != null) {
+                return result;
+            }
+        }
+
+        return null;
     }
 
     private void play() {
-        if (mediaPlayer != null) mediaPlayer.play();
+        if (mediaPlayer != null) {
+            mediaPlayer.play();
+            updatePlayPauseButtonGraphic();
+            refreshButtonTexts();
+        }
     }
 
     private void pause() {
-        if (mediaPlayer != null) mediaPlayer.pause();
+        if (mediaPlayer != null) {
+            mediaPlayer.pause();
+            updatePlayPauseButtonGraphic();
+            refreshButtonTexts();
+        }
     }
 
     private void stop() {
         if (mediaPlayer != null) {
             mediaPlayer.stop();
             progressSlider.setValue(0);
+            updatePlayPauseButtonGraphic();
+            refreshButtonTexts();
         }
     }
 
@@ -406,9 +684,32 @@ public class MainController {
         double frac = current.toMillis() / total.toMillis();
         progressSlider.setValue(frac * 1000.0);
 
-        String cur = PathUtils.formatTimeMillis((long) current.toMillis());
-        String ttl = PathUtils.formatTimeMillis((long) total.toMillis());
-        timeLabel.setText(cur + " / " + ttl);
+        updateTimeDisplay();
+    }
+
+    private void updateTimeDisplay() {
+        if (mediaPlayer == null) {
+            timeLabel.setText("00:00 / 00:00");
+            return;
+        }
+
+        Duration current = mediaPlayer.getCurrentTime();
+        Duration total = mediaPlayer.getTotalDuration();
+        if (total == null || total.isUnknown() || total.lessThanOrEqualTo(Duration.ZERO)) {
+            timeLabel.setText("00:00 / 00:00");
+            return;
+        }
+
+        String totalStr = PathUtils.formatTimeMillis((long) total.toMillis());
+
+        if (showRemainingTime) {
+            Duration remaining = total.subtract(current);
+            String remainingStr = "-" + PathUtils.formatTimeMillis((long) remaining.toMillis());
+            timeLabel.setText(remainingStr + " / " + totalStr);
+        } else {
+            String currentStr = PathUtils.formatTimeMillis((long) current.toMillis());
+            timeLabel.setText(currentStr + " / " + totalStr);
+        }
     }
 
     private void showAlert(String title, String msg) {
@@ -435,35 +736,8 @@ public class MainController {
 
         mediaPlayer.seek(target);
 
-        // Optional immediate UI feedback; timer will update too
         double frac = target.toMillis() / total.toMillis();
         progressSlider.setValue(frac * progressSlider.getMax());
-    }
-
-    private void playNextMedia() {
-        if (rootPath == null) return;
-
-        TreeItem<String> currentItem = playlistTree.getSelectionModel().getSelectedItem();
-        if (currentItem == null || !currentItem.isLeaf()) return;
-
-        TreeItem<String> parent = currentItem.getParent();
-        if (parent == null) return;
-
-        // Find current item index in parent's children
-        int currentIndex = parent.getChildren().indexOf(currentItem);
-        if (currentIndex == -1) return;
-
-        // Look for next media file
-        for (int i = currentIndex + 1; i < parent.getChildren().size(); i++) {
-            TreeItem<String> nextItem = parent.getChildren().get(i);
-            if (nextItem.isLeaf()) {
-                // Found next media file
-                playlistTree.getSelectionModel().select(nextItem);
-                String nextPath = PathUtils.buildFullPath(rootPath, nextItem);
-                loadAndPlay(nextPath);
-                return;
-            }
-        }
     }
 
     private void initializeAudioVisualizer() {
@@ -471,21 +745,17 @@ public class MainController {
         audioVisualizerCanvas.widthProperty().bind(mediaView.fitWidthProperty());
         audioVisualizerCanvas.heightProperty().bind(mediaView.fitHeightProperty());
         gc = audioVisualizerCanvas.getGraphicsContext2D();
-        previousMagnitudes = null; // reset smoothing
+        previousMagnitudes = null;
     }
 
     private void setupAudioVisualizer(MediaPlayer mediaPlayer) {
-        // Eski MediaPlayer'ın listener'ını temizle
         if (this.mediaPlayer != null)
             this.mediaPlayer.setAudioSpectrumListener(null);
 
-
         clearAudioSpectrum();
 
-        // Sadece ses dosyalarında görselleştirici ekle
         Object videoMeta = mediaPlayer.getMedia().getMetadata().get("video");
         if (videoMeta == null || Boolean.FALSE.equals(videoMeta)) {
-            // Yeni canvas oluştur
             initializeAudioVisualizer();
 
             StackPane stackPane = (StackPane) mediaView.getParent();
@@ -493,7 +763,6 @@ public class MainController {
                 stackPane.getChildren().add(audioVisualizerCanvas);
             }
 
-            // Yeni MediaPlayer için listener ayarla
             mediaPlayer.setAudioSpectrumListener((timestamp, duration, magnitudes, phases) -> {
                 Platform.runLater(() -> {
                     drawAudioSpectrum(magnitudes);
@@ -515,7 +784,7 @@ public class MainController {
             if (stackPane != null) {
                 stackPane.getChildren().remove(audioVisualizerCanvas);
             }
-            previousMagnitudes = null; // smoothing reset
+            previousMagnitudes = null;
         }
     }
 
@@ -531,12 +800,10 @@ public class MainController {
         double barWidth = width / magnitudes.length;
         for (int i = 0; i < magnitudes.length; i++) {
             float raw = magnitudes[i];
-            // Sessizlikte decay uygula
             if (raw < -60) raw = (float)(previousMagnitudes[i] - DECAY_FACTOR * 60.0);
-            // Smoothing
             float smoothed = (float)(previousMagnitudes[i] * (1.0 - SMOOTHING_ALPHA) + raw * SMOOTHING_ALPHA);
             previousMagnitudes[i] = smoothed;
-            float magnitude = smoothed + 60; // normalize to 0..60
+            float magnitude = smoothed + 60;
             magnitude = Math.max(0, magnitude);
             double normalizedMagnitude = magnitude / 60.0;
             double barHeight = normalizedMagnitude * height * 0.85;
@@ -547,23 +814,6 @@ public class MainController {
             gc.fillRect(x, y, barWidth - 1, barHeight);
         }
     }
-
-    private void updateOverlaySymbol() {
-        if (overlayIcon == null) return;
-        if (mediaPlayer == null) {
-            overlayIcon.setText("▶");
-            return;
-        }
-        MediaPlayer.Status st = mediaPlayer.getStatus();
-        switch (st) {
-            case PLAYING -> overlayIcon.setText("❚❚");
-            case PAUSED, READY, STOPPED -> overlayIcon.setText("▶");
-            case HALTED -> overlayIcon.setText("!");
-            default -> overlayIcon.setText("▶");
-        }
-    }
-
-    private javafx.animation.PauseTransition overlayHideDelay;
 
     private void showOverlayTemporary() {
         if (overlayIcon == null) return;
@@ -588,7 +838,7 @@ public class MainController {
 
     private void hideOverlay() {
         if (overlayIcon == null) return;
-        if (mediaPlayer != null && mediaPlayer.getStatus() != MediaPlayer.Status.PLAYING) return; // Pause'da görünür kalsın
+        if (mediaPlayer != null && mediaPlayer.getStatus() != MediaPlayer.Status.PLAYING) return;
         var ft = new javafx.animation.FadeTransition(Duration.millis(180), overlayIcon);
         ft.setFromValue(overlayIcon.getOpacity());
         ft.setToValue(0.0);
@@ -610,15 +860,27 @@ public class MainController {
                     }
                 }
             } else if (os.contains("win")) {
-                // Windows 10/11 registry sorgusu eklenebilir; basit varsayım: light
-                // Gelişmiş kullanım için JNA ile HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize okunabilir.
                 return THEME_LIGHT;
             } else {
-                // Linux masaüstü ortamlarında genellikle GTK theme okunur; basit fallback
                 String gtkTheme = System.getenv("GTK_THEME");
                 if (gtkTheme != null && gtkTheme.toLowerCase().contains("dark")) return THEME_DARK;
             }
         } catch (Exception ignored) { }
         return THEME_LIGHT;
+    }
+
+    private void toggleMute() {
+        if (btnMute == null || volumeSlider == null) return;
+
+        if (btnMute.isSelected()) {
+            volumeBeforeMute = volumeSlider.getValue();
+            volumeSlider.setValue(0);
+            btnMute.setText("🔇");
+            if (mediaPlayer != null) mediaPlayer.setVolume(0);
+        } else {
+            volumeSlider.setValue(volumeBeforeMute);
+            btnMute.setText("🔊");
+            if (mediaPlayer != null) mediaPlayer.setVolume(volumeBeforeMute / 100.0);
+        }
     }
 }
